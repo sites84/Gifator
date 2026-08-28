@@ -1,0 +1,2 @@
+# Gifator
+Jpg to gif
