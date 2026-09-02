@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gifator — Editor de Recortes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<style>
+:root{--p:#6366f1;--pd:#4f46e5;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#cbd5e1;--danger:#ef4444;--ok:#22c55e}
+*{box-sizing:border-box}body{margin:0;padding:20px 12px 50px;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text)}
+.container{width:100%;max-width:1000px;margin:auto}header{text-align:center;margin-bottom:20px}header h1{margin:5px 0 8px}header p{color:var(--muted);margin:0}
+.card{background:var(--card);padding:22px;border-radius:16px;box-shadow:0 4px 12px #00000012;margin-bottom:18px}
+.ad{height:90px;background:#e2e8f0;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94a3b8;margin-bottom:18px}
+.file-label,.btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;padding:11px 16px;font-weight:700;cursor:pointer;font-size:14px}
+.file-label{background:var(--p);color:#fff}.file-label input{display:none}.btn{background:#e2e8f0;color:var(--text)}.btn.primary{background:var(--p);color:#fff}.btn.success{background:var(--ok);color:#fff}.btn.danger{background:#fee2e2;color:#991b1b}
+.upload-row{display:flex;gap:10px;flex-wrap:wrap}
+#sourceList{display:flex;gap:10px;overflow-x:auto;padding:12px 0 4px}
+.source-thumb{flex:0 0 90px;height:90px;border:2px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;position:relative;background:#fff}
+.source-thumb.active{border-color:var(--p);box-shadow:0 0 0 2px #6366f133}.source-thumb img{width:100%;height:100%;object-fit:cover}.source-num{position:absolute;left:5px;top:5px;background:#000b;color:#fff;border-radius:5px;padding:2px 6px;font-size:11px}
+#editorWrap{display:none}.editor-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+#canvasBox{position:relative;width:100%;max-width:900px;margin:auto;background:#111;border-radius:12px;overflow:hidden;touch-action:none;user-select:none}
+#editorCanvas{display:block;width:100%;height:auto;max-height:65vh;object-fit:contain}
+#selection{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px #0005;display:none;cursor:move;touch-action:none;z-index:2}
+.handle{position:absolute;width:14px;height:14px;background:#fff;border:2px solid var(--p);border-radius:50%}.nw{left:-7px;top:-7px}.ne{right:-7px;top:-7px}.sw{left:-7px;bottom:-7px}.se{right:-7px;bottom:-7px}
+.hint{font-size:13px;color:var(--muted);text-align:center;margin:10px 0}
+#sequence{display:flex;flex-wrap:wrap;gap:12px;min-height:130px;padding:12px;border:2px dashed var(--border);border-radius:12px}
+.frame{width:125px;height:125px;border:2px solid #e2e8f0;border-radius:10px;overflow:hidden;position:relative;background:#fff;cursor:grab}.frame img{width:100%;height:100%;object-fit:cover;pointer-events:none}.frame .num{position:absolute;left:5px;top:5px;background:#000b;color:#fff;padding:3px 7px;border-radius:5px;font-size:12px}.frame .src{position:absolute;left:5px;bottom:5px;background:#000b;color:#fff;padding:2px 5px;border-radius:4px;font-size:10px}.frame .x{position:absolute;right:5px;top:5px;width:25px;height:25px;border:0;border-radius:50%;background:#ef4444;color:#fff;font-weight:bold;cursor:pointer}
+.empty{text-align:center;color:var(--muted);width:100%;padding:35px 10px}.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px}.group{display:flex;flex-direction:column;gap:6px}input,select{padding:10px;border:1px solid var(--border);border-radius:8px;width:100%;background:#fff}
+#progress{height:9px;background:#e2e8f0;border-radius:10px;overflow:hidden;margin-top:12px}#bar{height:100%;width:0;background:var(--p);transition:width .1s}#status{text-align:center;color:var(--muted);margin-top:10px}
+#result{text-align:center}.result-img{max-width:100%;width:400px;border:3px solid var(--p);border-radius:12px;cursor:pointer}.download{display:inline-block;background:var(--ok);color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:700;margin-top:12px}
+#modal{display:none;position:fixed;inset:0;background:#0f172af5;z-index:50;align-items:center;justify-content:center;flex-direction:column;padding:15px}#modal img{max-width:95%;max-height:75vh;border-radius:10px}
+@media(max-width:600px){.card{padding:16px}.frame{width:calc(33.333% - 8px);height:105px}.source-thumb{flex-basis:75px;height:75px}}
+
+.frame-controls{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:center;
+  margin-top:8px;
+}
+.frame-action{
+  border:1px solid #cbd5e1;
+  background:#fff;
+  color:#1e293b;
+  border-radius:7px;
+  padding:6px 9px;
+  font-size:12px;
+  cursor:pointer;
+}
+.frame-action:hover{
+  background:#f1f5f9;
+}
+.flip-frame{
+  border-color:#93c5fd;
+}
+.duplicate-frame{
+  border-color:#86efac;
+}
+.remove-frame{
+  color:#dc2626;
+  border-color:#fecaca;
+  font-weight:700;
+}
+
+    .top-banner-link { display:block; width:100%; margin:0 auto 20px; text-decoration:none; }
+    .top-banner-link img { display:block; width:100%; height:auto; border-radius:12px; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="top-banner-link" href="https://simule.mycon.com.br/?referralcode=P8tKvjN4vR%2fXk9dn%2bXx41A%3d%3d" target="_blank" rel="noopener noreferrer">
+  <img src="https://raw.githubusercontent.com/sites84/Gifator/main/banner%20mycon.webp" alt="Mycon Consórcios">
+</a>
+<header><h1>🎞️ Gifator</h1><p>Recorte várias partes das suas fotos e monte a sequência do GIF</p></header>
+<a class="top-banner-link" href="https://s.shopee.com.br/AKa7kV28Ow" target="_blank" rel="noopener noreferrer">
+  <img src="https://raw.githubusercontent.com/sites84/Gifator/main/banner%20shopee.webp" alt="Compre na Shopee">
+</a>
+
+
+
+<div class="card">
+<h3>1. Fotos originais</h3>
+<div class="upload-row">
+<label class="file-label">📷 Adicionar fotos<input id="files" type="file" accept="image/*" multiple></label>
+<button class="btn danger" id="clearSources">🗑️ Limpar fotos</button>
+</div>
+<div id="sourceList"><div class="empty">Adicione uma ou mais fotos. Clique em uma delas para editar.</div></div>
+</div>
+
+<div class="card" id="editorWrap">
+<h3>2. Recorte a foto selecionada</h3>
+<div class="editor-toolbar">
+<button class="btn" id="newSelection">🔲 Nova seleção</button>
+<button class="btn" id="resetSelection">↩️ Reajustar</button>
+<button class="btn success" id="addCrop">➕ Adicionar recorte à sequência</button>
+</div>
+<div id="canvasBox">
+<canvas id="editorCanvas"></canvas>
+<div id="selection">
+<span class="handle nw"></span><span class="handle ne"></span><span class="handle sw"></span><span class="handle se"></span>
+</div>
+</div>
+<p class="hint">Arraste para criar a área. Depois arraste a seleção para reposicionar. Use os cantos para redimensionar.</p>
+</div>
+
+<div class="card">
+<h3>3. Sequência do GIF <small id="count" style="color:#64748b">(0 frames)</small></h3>
+<p class="hint">Arraste os recortes para mudar a ordem. Cada recorte vira um frame do GIF.</p>
+<div id="sequence"><div class="empty">Seus recortes aparecerão aqui.</div></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+<button class="btn danger" id="clearSequence">🗑️ Limpar sequência</button>
+</div>
+</div>
+
+<div class="card">
+<h3>4. Configurações</h3>
+<div class="controls">
+<div class="group"><label>Nome do arquivo</label><input id="fileName" value="meu_gif"></div>
+<div class="group"><label>Velocidade</label><select id="delay"><option value="50">Muito rápida</option><option value="100">Rápida</option><option value="150" selected>Normal</option><option value="250">Lenta</option><option value="500">Muito lenta</option><option value="1000">1 segundo</option></select></div>
+<div class="group"><label>Resolução</label><select id="resolution"><option value="original">Original</option><option value="720">720 px</option><option value="600">600 px</option><option value="480">480 px</option><option value="360">360 px</option></select></div>
+<div class="group"><label>Qualidade</label><select id="quality"><option value="1">Máxima</option><option value="5" selected>Alta</option><option value="10">Média</option><option value="20">Baixa</option></select></div>
+</div>
+<label style="display:block;margin-top:12px"><input type="checkbox" id="cropFill"> Preencher quadro (crop/zoom)</label>
+<button class="btn primary" id="generate" style="width:100%;margin-top:18px">🚀 Criar GIF</button>
+<div id="status"></div><div id="progress"><div id="bar"></div></div>
+</div>
+
+<div id="result"></div>
+</div>
+
+<div id="modal"><img id="modalImg"><a id="modalDownload" class="download">⬇️ Baixar</a><button class="btn" style="margin-top:12px" onclick="closeModal()">Fechar</button></div>
+
+<script>
+const workerUrl=URL.createObjectURL(new Blob(["importScripts('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');"],{type:"application/javascript"}));
+const filesEl=document.getElementById("files"),sourceList=document.getElementById("sourceList"),editorWrap=document.getElementById("editorWrap"),canvas=document.getElementById("editorCanvas"),box=document.getElementById("canvasBox"),sel=document.getElementById("selection"),sequence=document.getElementById("sequence");
+let sources=[],activeSource=-1,activeImage=null,selection=null,dragState=null,frames=[],generatedUrl=null;
+
+filesEl.onchange=e=>{addSources([...e.target.files].filter(f=>f.type.startsWith("image/")));filesEl.value=""};
+function addSources(list){list.forEach(file=>{const id=crypto.randomUUID?crypto.randomUUID():Date.now()+Math.random();sources.push({id,file,url:URL.createObjectURL(file),img:null})});renderSources();if(activeSource<0&&sources.length)selectSource(0)}
+function renderSources(){sourceList.innerHTML="";if(!sources.length){sourceList.innerHTML='<div class="empty">Adicione uma ou mais fotos. Clique em uma delas para editar.</div>';editorWrap.style.display="none";return}sources.forEach((s,i)=>{const d=document.createElement("div");d.className="source-thumb"+(i===activeSource?" active":"");d.innerHTML=`<img src="${s.url}"><span class="source-num">${i+1}</span>`;d.onclick=()=>selectSource(i);sourceList.appendChild(d)})}
+async function selectSource(i){activeSource=i;renderSources();editorWrap.style.display="block";const s=sources[i];if(!s.img){s.img=await loadImage(s.file)}activeImage=s.img;setupCanvas()}
+function setupCanvas(){const max=1400,scale=Math.min(1,max/activeImage.width,max/activeImage.height);canvas.width=Math.round(activeImage.width*scale);canvas.height=Math.round(activeImage.height*scale);canvas.getContext("2d").drawImage(activeImage,0,0,canvas.width,canvas.height);box.style.aspectRatio=canvas.width+"/"+canvas.height;sel.style.display="none";selection=null}
+function getPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.max(0,Math.min(canvas.width,(e.clientX-r.left)*canvas.width/r.width)),y:Math.max(0,Math.min(canvas.height,(e.clientY-r.top)*canvas.height/r.height))}}
+function showSelection(x,y,w,h){selection={x,y,w,h};sel.style.display="block";updateSel()}
+function updateSel(){const r=canvas.getBoundingClientRect(),sx=r.width/canvas.width,sy=r.height/canvas.height;sel.style.left=(selection.x*sx)+"px";sel.style.top=(selection.y*sy)+"px";sel.style.width=(selection.w*sx)+"px";sel.style.height=(selection.h*sy)+"px"}
+const MIN_SEL=6;
+function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+function getPoint(e){const r=canvas.getBoundingClientRect();return{x:clamp((e.clientX-r.left)*canvas.width/r.width,0,canvas.width),y:clamp((e.clientY-r.top)*canvas.height/r.height,0,canvas.height)}}
+function updateSel(){if(!selection){sel.style.display="none";return}const r=canvas.getBoundingClientRect(),sx=r.width/canvas.width,sy=r.height/canvas.height;sel.style.display="block";sel.style.left=(selection.x*sx)+"px";sel.style.top=(selection.y*sy)+"px";sel.style.width=(selection.w*sx)+"px";sel.style.height=(selection.h*sy)+"px"}
+
+canvas.addEventListener("pointerdown",e=>{
+  if(!activeImage || (e.button!==undefined && e.button!==0))return;
+  e.preventDefault();
+  const p=getPoint(e);
+  selection={x:p.x,y:p.y,w:0,h:0};
+  dragState={type:"create",pointerId:e.pointerId,start:p};
+  sel.style.display="block";
+});
+
+canvas.addEventListener("pointermove",e=>{
+  if(!dragState||dragState.pointerId!==e.pointerId||dragState.type!=="create")return;
+  const p=getPoint(e),a=dragState.start;
+  selection.x=Math.min(a.x,p.x);selection.y=Math.min(a.y,p.y);
+  selection.w=Math.abs(p.x-a.x);selection.h=Math.abs(p.y-a.y);
+  updateSel();
+});
+
+canvas.addEventListener("pointerup",e=>{
+  if(!dragState||dragState.pointerId!==e.pointerId)return;
+  if(dragState.type==="create"&&(selection.w<MIN_SEL||selection.h<MIN_SEL)){selection=null;sel.style.display="none"}
+  dragState=null;
+});
+
+sel.addEventListener("pointerdown",e=>{
+  if(!selection)return;
+  e.preventDefault();e.stopPropagation();
+  const p=getPoint(e),h=e.target.closest(".handle");
+  dragState={
+    type:h?"resize":"move",
+    pointerId:e.pointerId,
+    corner:h?["nw","ne","sw","se"].find(c=>h.classList.contains(c)):null,
+    start:p,
+    original:{...selection}
+  };
+  try{sel.setPointerCapture(e.pointerId)}catch(_){}
+});
+
+sel.addEventListener("pointermove",e=>{
+  if(!dragState||dragState.pointerId!==e.pointerId)return;
+  const p=getPoint(e),o=dragState.original;
+  if(dragState.type==="move"){
+    selection.x=clamp(o.x+p.x-dragState.start.x,0,canvas.width-o.w);
+    selection.y=clamp(o.y+p.y-dragState.start.y,0,canvas.height-o.h);
+  }else{
+    const c=dragState.corner,r=o.x+o.w,b=o.y+o.h;
+    if(c==="nw"){const x=clamp(p.x,0,r-MIN_SEL),y=clamp(p.y,0,b-MIN_SEL);selection={x,y,w:r-x,h:b-y}}
+    if(c==="ne"){const y=clamp(p.y,0,b-MIN_SEL),x2=clamp(p.x,o.x+MIN_SEL,canvas.width);selection={x:o.x,y,w:x2-o.x,h:b-y}}
+    if(c==="sw"){const x=clamp(p.x,0,r-MIN_SEL),y2=clamp(p.y,o.y+MIN_SEL,canvas.height);selection={x,y:o.y,w:r-x,h:y2-o.y}}
+    if(c==="se"){const x2=clamp(p.x,o.x+MIN_SEL,canvas.width),y2=clamp(p.y,o.y+MIN_SEL,canvas.height);selection={x:o.x,y:o.y,w:x2-o.x,h:y2-o.y}}
+  }
+  updateSel();
+});
+
+function endSelection(e){
+  if(!dragState||dragState.pointerId!==e.pointerId)return;
+  dragState=null;
+  try{sel.releasePointerCapture(e.pointerId)}catch(_){}
+  updateSel();
+}
+sel.addEventListener("pointerup",endSelection);
+sel.addEventListener("pointercancel",endSelection);
+
+document.getElementById("newSelection").onclick=()=>{sel.style.display="none";selection=null;dragState=null};
+
+document.getElementById("resetSelection").onclick=()=>{if(activeImage){showSelection(0,0,canvas.width,canvas.height)}};
+document.getElementById("addCrop").onclick=()=>{if(!selection||selection.w<5||selection.h<5){alert("Faça uma seleção primeiro.");return}const c=document.createElement("canvas");c.width=Math.round(selection.w);c.height=Math.round(selection.h);const ctx=c.getContext("2d");ctx.drawImage(canvas,selection.x,selection.y,selection.w,selection.h,0,0,c.width,c.height);frames.push({canvas:c,source:activeSource});renderSequence();};
+function renderSequence(){
+  const list = document.getElementById("framesList") || document.getElementById("sequence");
+  if(!list) return;
+
+  // Destrói o Sortable anterior antes de reconstruir os elementos.
+  if(window.frameSortable){
+    try{ window.frameSortable.destroy(); }catch(_){}
+    window.frameSortable=null;
+  }
+  list._sortableInitialized=false;
+  list.innerHTML="";
+
+  frames.forEach((frame,index)=>{
+    const item=document.createElement("div");
+    item.className="frame-item";
+    item.dataset.index=index;
+
+    const preview=document.createElement("canvas");
+    preview.width=frame.canvas.width;
+    preview.height=frame.canvas.height;
+    preview.className="frame-preview";
+    preview.getContext("2d").drawImage(frame.canvas,0,0);
+
+    const number=document.createElement("div");
+    number.className="frame-number";
+    number.textContent="Frame "+(index+1);
+
+    const info=document.createElement("div");
+    info.className="frame-info";
+    info.textContent="Foto "+(frame.source+1);
+
+    const controls=document.createElement("div");
+    controls.className="frame-controls";
+
+    const duplicate=document.createElement("button");
+    duplicate.type="button";
+    duplicate.className="frame-action duplicate-frame";
+    duplicate.textContent="Duplicar";
+    duplicate.title="Duplicar este frame";
+
+    const flip=document.createElement("button");
+    flip.type="button";
+    flip.className="frame-action flip-frame";
+    flip.textContent="↔ Flip";
+    flip.title="Inverter horizontalmente";
+
+    const remove=document.createElement("button");
+    remove.type="button";
+    remove.className="frame-action remove-frame";
+    remove.textContent="×";
+    remove.title="Remover frame";
+
+    duplicate.addEventListener("click",e=>{
+      e.preventDefault();
+      e.stopPropagation();
+
+      const copy=document.createElement("canvas");
+      copy.width=frame.canvas.width;
+      copy.height=frame.canvas.height;
+      const ctx=copy.getContext("2d");
+      ctx.drawImage(frame.canvas,0,0);
+
+      frames.splice(index+1,0,{canvas:copy,source:frame.source});
+      renderSequence();
+    });
+
+    flip.addEventListener("click",e=>{
+        e.preventDefault();
+        e.stopPropagation();
+
+        if(!frame || !frame.canvas) return;
+
+        // Espelha o próprio canvas do frame, preservando sua referência.
+        // Não altera o array frames e não reconstrói a lista.
+        const c = frame.canvas;
+        const temp = document.createElement("canvas");
+        temp.width = c.width;
+        temp.height = c.height;
+
+        const tempCtx = temp.getContext("2d");
+        tempCtx.save();
+        tempCtx.translate(temp.width, 0);
+        tempCtx.scale(-1, 1);
+        tempCtx.drawImage(c, 0, 0);
+        tempCtx.restore();
+
+        // Copia o resultado de volta para o canvas original.
+        const cctx = c.getContext("2d");
+        cctx.clearRect(0, 0, c.width, c.height);
+        cctx.drawImage(temp, 0, 0);
+
+        // Atualiza somente a miniatura do frame clicado.
+        preview.width = c.width;
+        preview.height = c.height;
+        const previewCtx = preview.getContext("2d");
+        previewCtx.clearRect(0, 0, preview.width, preview.height);
+        previewCtx.drawImage(c, 0, 0);
+
+    });
+
+    remove.addEventListener("click",e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      frames.splice(index,1);
+      renderSequence();
+    });
+
+    controls.appendChild(duplicate);
+    controls.appendChild(flip);
+    controls.appendChild(remove);
+
+    // Os botões não devem iniciar nem participar do drag do Sortable.
+    ["pointerdown","mousedown","touchstart"].forEach(type=>{
+      controls.addEventListener(type,e=>{
+        e.stopPropagation();
+      },{passive:false});
+    });
+
+    item.appendChild(preview);
+    item.appendChild(number);
+    item.appendChild(info);
+    item.appendChild(controls);
+    list.appendChild(item);
+  });
+
+  if(window.Sortable){
+    window.frameSortable=new Sortable(list,{
+      animation:150,
+      ghostClass:"sortable-ghost",
+      filter:"button",
+      preventOnFilter:false,
+      onMove:function(evt){
+        const target = evt && evt.originalEvent && evt.originalEvent.target;
+        if(target && target.closest && target.closest("button")) return false;
+        return true;
+      },
+      onEnd:function(evt){
+        const oldIndex = Number.isInteger(evt.oldIndex) ? evt.oldIndex : -1;
+        const newIndex = Number.isInteger(evt.newIndex) ? evt.newIndex : -1;
+
+        // Clique/toque em botão nunca deve alterar a sequência.
+        if(oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+        if(oldIndex >= frames.length || newIndex >= frames.length) return;
+
+        const moved = frames.splice(oldIndex,1)[0];
+        if(moved === undefined) return;
+
+        frames.sp
